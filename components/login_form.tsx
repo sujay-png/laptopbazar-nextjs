@@ -41,11 +41,7 @@ export function LoginForm() {
       <div className="py-10 md:py-20 max-w-lg px-4 sm:px-0 mx-auto w-full">
         <Card className="max-w-lg px-6 py-8 sm:p-12 relative gap-6">
           <CardHeader className="text-center gap-6 p-0">
-            <div className="mx-auto">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full overflow-hidden border bg-background shadow-sm">
-                <img src="/Logo.png" alt="Laptopbazzar Logo" className="h-full w-full object-contain p-1" />
-              </div>
-            </div>
+           
             <div className="flex flex-col gap-1 mt-2">
               <CardTitle className="text-2xl font-semibold tracking-tight text-card-foreground">
                 Welcome

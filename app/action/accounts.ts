@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 import { getCurrentBusinessId } from "./business";
 
 export async function fetchInvoices() {
@@ -15,20 +16,46 @@ export async function fetchInvoices() {
         .from('Invoices')
         .select(`
             *,
-            Customers:customer_ref ( customer_name, customer_phone )
+            Customers:customer_ref ( customer_name, customer_phone, customer_email ),
+            items:invoice_items ( * ),
+            payments:Payments ( * )
         `)
         .eq('business_ref', businessId)
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('Error fetching invoices:', error);
-        return [];
+        console.error('Error fetching invoices with relations, trying fallback:', error);
+        const { data: fallbackData, error: fallbackError } = await supabase
+            .from('Invoices')
+            .select(`
+                *,
+                Customers:customer_ref ( customer_name, customer_phone, customer_email )
+            `)
+            .eq('business_ref', businessId)
+            .order('created_at', { ascending: false });
+
+        if (fallbackError || !fallbackData) {
+            console.error('Fallback fetch invoices failed:', fallbackError);
+            return [];
+        }
+
+        return fallbackData.map((invoice: any) => ({
+            ...invoice,
+            customer_name: invoice.Customers?.customer_name || 'Unknown',
+            customer_phone: invoice.Customers?.customer_phone || '-',
+            customer_email: invoice.Customers?.customer_email || '-',
+            items: invoice.items || [],
+            payments: invoice.payments || []
+        }));
     }
 
     return data.map((invoice: any) => ({
         ...invoice,
         customer_name: invoice.Customers?.customer_name || 'Unknown',
         customer_phone: invoice.Customers?.customer_phone || '-',
+        customer_email: invoice.Customers?.customer_email || '-',
+        items: invoice.items || [],
+        payments: invoice.payments || []
     }));
 }
 
@@ -38,8 +65,37 @@ export async function fetchInvoiceById(invoiceId: number) {
 
     if (!businessId) return null;
 
-    // Fetch Invoice
+    // Fetch Invoice with Items and Payments in a single roundtrip
     const { data: invoice, error: invError } = await supabase
+        .from('Invoices')
+        .select(`
+            *,
+            Customers:customer_ref ( customer_name, customer_phone, customer_email ),
+            items:invoice_items ( * ),
+            payments:Payments ( * )
+        `)
+        .eq('id', invoiceId)
+        .eq('business_ref', businessId)
+        .single();
+
+    if (!invError && invoice) {
+        const sortedPayments = (invoice.payments || []).sort((a: any, b: any) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        return {
+            ...invoice,
+            customer_name: invoice.Customers?.customer_name || 'Unknown',
+            customer_phone: invoice.Customers?.customer_phone || '-',
+            customer_email: invoice.Customers?.customer_email || '-',
+            items: invoice.items || [],
+            payments: sortedPayments
+        };
+    }
+
+    // Fallback if joined query had any issue
+    console.warn('Single-query fetch failed, falling back to parallel fetch:', invError);
+    const { data: fallbackInvoice, error: fallbackError } = await supabase
         .from('Invoices')
         .select(`
             *,
@@ -49,26 +105,25 @@ export async function fetchInvoiceById(invoiceId: number) {
         .eq('business_ref', businessId)
         .single();
 
-    if (invError || !invoice) return null;
+    if (fallbackError || !fallbackInvoice) return null;
 
-    // Fetch Items
-    const { data: items } = await supabase
-        .from('invoice_items')
-        .select('*')
-        .eq('invoice_ref', invoiceId);
-
-    // Fetch Payments
-    const { data: payments } = await supabase
-        .from('Payments')
-        .select('*')
-        .eq('invoice_reference', invoiceId)
-        .order('created_at', { ascending: false });
+    const [{ data: items }, { data: payments }] = await Promise.all([
+        supabase
+            .from('invoice_items')
+            .select('*')
+            .eq('invoice_ref', invoiceId),
+        supabase
+            .from('Payments')
+            .select('*')
+            .eq('invoice_reference', invoiceId)
+            .order('created_at', { ascending: false })
+    ]);
 
     return {
-        ...invoice,
-        customer_name: invoice.Customers?.customer_name || 'Unknown',
-        customer_phone: invoice.Customers?.customer_phone || '-',
-        customer_email: invoice.Customers?.customer_email || '-',
+        ...fallbackInvoice,
+        customer_name: fallbackInvoice.Customers?.customer_name || 'Unknown',
+        customer_phone: fallbackInvoice.Customers?.customer_phone || '-',
+        customer_email: fallbackInvoice.Customers?.customer_email || '-',
         items: items || [],
         payments: payments || []
     };
@@ -314,7 +369,15 @@ export async function createInvoice(data: {
         return { success: false, error: e.message };
     }
 }
-export async function updateinvoice(formData: { id: number, name: string, phone: string, email: string, price: number, stockId: number }) {
+export async function updateinvoice(formData: {
+    id: number;
+    name: string;
+    phone: string;
+    email: string;
+    price: number;
+    stockId: number;
+    date?: string | null;
+}) {
     const supabase = await createClient();
     const businessId = await getCurrentBusinessId();
 
@@ -336,8 +399,8 @@ export async function updateinvoice(formData: { id: number, name: string, phone:
 
     const customerId = invoiceData.customer_ref;
 
-    // 2. Fetch and update the customer details
-    const { data: customerData, error: customerError } = await supabase
+    // 2. Fetch and update customer, invoice items, and invoice in parallel
+    const customerPromise = supabase
         .from('Customers')
         .update({
             customer_name: formData.name,
@@ -348,14 +411,7 @@ export async function updateinvoice(formData: { id: number, name: string, phone:
         .select('customer_name, customer_phone')
         .single();
 
-    if (customerError) {
-        console.error('Error updating customer:', customerError);
-        return { success: false, error: customerError.message };
-    }
-
-    // 3. Update the invoice items (assuming formData.id is the invoice ID and there is one item or you are updating all items for this invoice)
-    // If formData.id refers to the invoice, we update its items.
-    const { error: itemError } = await supabase
+    const itemPromise = supabase
         .from('invoice_items')
         .update({
             sale_price: formData.price,
@@ -363,14 +419,42 @@ export async function updateinvoice(formData: { id: number, name: string, phone:
         })
         .eq('invoice_ref', formData.id);
 
-    if (itemError) {
-        console.error('Error updating invoice item:', itemError);
-        return { success: false, error: itemError.message };
+    const invoicePromise = formData.date
+        ? supabase
+            .from('Invoices')
+            .update({
+                invoices_date: formData.date,
+            })
+            .eq('id', formData.id)
+            .eq('business_ref', businessId)
+        : Promise.resolve({ error: null });
+
+    const [customerResult, itemResult, invoiceResult] = await Promise.all([
+        customerPromise,
+        itemPromise,
+        invoicePromise,
+    ]);
+
+    if (customerResult.error) {
+        console.error('Error updating customer:', customerResult.error);
+        return { success: false, error: customerResult.error.message };
     }
+
+    if (itemResult.error) {
+        console.error('Error updating invoice item:', itemResult.error);
+        return { success: false, error: itemResult.error.message };
+    }
+
+    if (invoiceResult && invoiceResult.error) {
+        console.error('Error updating invoice date:', invoiceResult.error);
+        return { success: false, error: invoiceResult.error.message };
+    }
+
+    revalidatePath('/accounts');
 
     return {
         success: true,
-        customer: customerData // Returning the fetched and updated customer details
+        customer: customerResult.data
     };
 }
 
@@ -528,6 +612,7 @@ export async function updateQuotation(formData: {
     email: string;
     items?: any[];
     discount?: number;
+    date?: string | null;
 }) {
     const supabase = await createClient();
     const businessId = await getCurrentBusinessId();
@@ -567,13 +652,18 @@ export async function updateQuotation(formData: {
     const discount = formData.discount || 0;
     const newGrandTotal = newSubtotal - discount;
 
+    const updatePayload: any = {
+        invoices_items: updatedItems,
+        invoices_subtotal: newSubtotal,
+        invoices_grandTotal: newGrandTotal,
+    };
+    if (formData.date) {
+        updatePayload.date = formData.date;
+    }
+
     const { error: quotUpdateErr } = await supabase
         .from('quotation')
-        .update({
-            invoices_items: updatedItems,
-            invoices_subtotal: newSubtotal,
-            invoices_grandTotal: newGrandTotal,
-        })
+        .update(updatePayload)
         .eq('id', formData.id)
         .eq('business_ref', businessId);
 

@@ -1,37 +1,29 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search } from "lucide-react"
-import { ShimmerButton } from '@/components/ui/shimmer-button'
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import { ProductsForm } from "@/features/productform/productsform"
-import { ProductActions } from "./product-actions"
-import Link from "next/link"
-import { CustomPagination } from "@/components/CustomPagination"
+import React from "react";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Search } from "lucide-react";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { ProductsForm } from "@/features/productform/productsform";
+import { ProductActions } from "./product-actions";
+import Link from "next/link";
+import { CustomPagination } from "@/components/CustomPagination";
+import { useProductOperations } from "./hooks/useProductOperations";
 
 export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
-    const [searchTerm, setSearchTerm] = useState("")
-    const [currentPage, setCurrentPage] = useState(1)
-    const [itemsPerPage, setItemsPerPage] = useState(10)
-
-    const filteredProducts = initialProducts.filter(product => {
-        const searchLower = searchTerm.toLowerCase()
-        return (
-            (product.product_name || "").toLowerCase().includes(searchLower) ||
-            (product.product_config || "").toLowerCase().includes(searchLower) ||
-            (product.product_code || "").toLowerCase().includes(searchLower) ||
-            (product.brandName || product.Brand?.name || "").toLowerCase().includes(searchLower) ||
-            String(product.typeName || "").toLowerCase().includes(searchLower) ||
-            String(product.id).includes(searchLower)
-        )
-    })
-
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage)
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage)
+    const {
+        searchTerm,
+        setSearchTerm,
+        currentPage,
+        setCurrentPage,
+        itemsPerPage,
+        setItemsPerPage,
+        totalPages,
+        paginatedProducts,
+    } = useProductOperations(initialProducts);
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -67,7 +59,10 @@ export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
                                 placeholder="Search products..."
                                 className="pl-8"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    setCurrentPage(1);
+                                }}
                             />
                         </div>
                     </div>
@@ -86,7 +81,7 @@ export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredProducts.length === 0 ? (
+                                {paginatedProducts.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="h-24 text-center">
                                             No results.
@@ -98,25 +93,34 @@ export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
                                             <TableCell className="font-medium">{product.id}</TableCell>
                                             <TableCell className="py-3">
                                                 <div className="flex flex-col">
-                                                    <span className="font-medium text-foreground">{product.product_name || 'Unnamed'}</span>
+                                                    <span className="font-semibold text-foreground">
+                                                        {product.product_name}
+                                                    </span>
                                                     {product.product_config && (
-                                                        <span className="text-xs text-muted-foreground">{product.product_config}</span>
+                                                        <span className="text-xs text-muted-foreground line-clamp-1">
+                                                            {product.product_config}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{product.brandName || product.Brand?.name || 'N/A'}</TableCell>
-                                            <TableCell>{product.typeName || 'N/A'}</TableCell>
-                                            <TableCell>{product.product_code || 'N/A'}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Link href={`/products/stocks?search=${encodeURIComponent(product.product_name || '')}`}>
-                                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${product.purchased_quantity > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                                        }`}>
-                                                        {product.purchased_quantity || 0}
-                                                    </span>
+                                            <TableCell className="py-3 text-muted-foreground">
+                                                {product.brandName || product.Brand?.name || "—"}
+                                            </TableCell>
+                                            <TableCell className="py-3 text-muted-foreground">
+                                                {product.typeName || product.Type?.type_name || "—"}
+                                            </TableCell>
+                                            <TableCell className="py-3 font-mono text-xs">
+                                                {product.product_code || "—"}
+                                            </TableCell>
+                                            <TableCell className="py-3 text-right">
+                                                <Link
+                                                    href={`/products/stocks?search=${encodeURIComponent(product.product_name || "")}`}
+                                                    className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                                >
+                                                    {product.stocks_count ?? 0}
                                                 </Link>
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="py-3 text-center">
                                                 <ProductActions product={product} />
                                             </TableCell>
                                         </TableRow>
@@ -127,16 +131,18 @@ export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
                     </div>
 
                     {totalPages > 0 && (
-                        <CustomPagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            itemsPerPage={itemsPerPage}
-                            onPageChange={setCurrentPage}
-                            onItemsPerPageChange={setItemsPerPage}
-                        />
+                        <div className="mt-4">
+                            <CustomPagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                itemsPerPage={itemsPerPage}
+                                onPageChange={setCurrentPage}
+                                onItemsPerPageChange={setItemsPerPage}
+                            />
+                        </div>
                     )}
                 </CardContent>
             </Card>
         </div>
-    )
+    );
 }

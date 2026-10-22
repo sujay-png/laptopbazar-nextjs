@@ -18,23 +18,34 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 
-import { useStockFormData } from "@/hooks/useStockFormData"
+import { useStockFormData } from "@/app/hooks/useStockFormData"
 import { saveStock, updateStockDetails } from "@/app/action/stock"
 import { useRouter } from "next/navigation"
 import { ShimmerButton } from "@/components/ui/shimmer-button"
 
 export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, initialData?: any }) {
   const router = useRouter()
-  const [date, setDate] = React.useState<Date | undefined>(initialData?.purchase_date ? new Date(initialData.purchase_date) : undefined)
-  const [isLocalVendor, setIsLocalVendor] = React.useState(!!initialData?.localvendor && initialData.localvendor !== '-')
+  const [date, setDate] = React.useState<Date | undefined>(
+    initialData?.purchase_date
+      ? new Date(initialData.purchase_date)
+      : initialData?.created_at
+      ? new Date(initialData.created_at)
+      : undefined
+  )
+  const [isLocalVendor, setIsLocalVendor] = React.useState(
+    !!initialData?.localvendor && initialData.localvendor !== '-'
+  )
 
   // Data fetching state
   const { products, vendors, conditions } = useStockFormData()
 
-
   // Form state
-  const [selectedProduct, setSelectedProduct] = React.useState(initialData?.product_reference?.toString() || "")
-  const [selectedVendor, setSelectedVendor] = React.useState(initialData?.vendor_reference?.toString() || "")
+  const [selectedProduct, setSelectedProduct] = React.useState(
+    initialData?.product_reference?.toString() || initialData?.product_id?.toString() || ""
+  )
+  const [selectedVendor, setSelectedVendor] = React.useState(
+    initialData?.vendor_reference?.toString() || ""
+  )
   const [localVendorName, setLocalVendorName] = React.useState(() => {
     if (initialData?.localvendor && initialData.localvendor !== '-') {
       return initialData.localvendor.split(' - ')[0] || "";
@@ -47,14 +58,127 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
     }
     return "";
   })
-  const [cost, setCost] = React.useState(initialData?.stock_cost?.toString() || "")
+  const [cost, setCost] = React.useState(
+    initialData?.stock_cost?.toString() || initialData?.costprice?.toString() || ""
+  )
   const [proserial, setProserial] = React.useState(initialData?.product_serial || "")
-  const [qty, setQty] = React.useState(initialData?.stock_quantity?.toString() || "")
-  const [salePrice, setSalePrice] = React.useState(initialData?.sale_price?.toString() || "")
+  const [qty, setQty] = React.useState(
+    initialData?.stock_quantity?.toString() || initialData?.qty?.toString() || (initialData ? "1" : "")
+  )
+  const [salePrice, setSalePrice] = React.useState(
+    initialData?.sale_price?.toString() || initialData?.saleprice?.toString() || ""
+  )
   const [condition, setCondition] = React.useState(initialData?.condition || "")
 
   const [isPending, startTransition] = React.useTransition()
   const [error, setError] = React.useState<string | null>(null)
+
+  // Synchronize form whenever initialData updates (e.g. from async getStockForEdit) or when lookup lists load
+  React.useEffect(() => {
+    if (!initialData) return;
+
+    // 1. Resolve Product ID
+    let prodId = initialData.product_reference?.toString() || initialData.product_id?.toString() || "";
+    if (!prodId && initialData.product_name && products.length > 0) {
+      const match = products.find(
+        (p) => p.product_name?.toLowerCase().trim() === initialData.product_name?.toLowerCase().trim()
+      );
+      if (match) {
+        prodId = match.id.toString();
+      }
+    }
+    if (prodId) {
+      setSelectedProduct(prodId);
+    }
+
+    // 2. Resolve Quantity (default to 1 if empty/missing when editing)
+    const rawQty = initialData.stock_quantity ?? initialData.qty ?? initialData.quantity;
+    if (rawQty !== undefined && rawQty !== null && rawQty !== "") {
+      setQty(rawQty.toString());
+    } else {
+      setQty("1");
+    }
+
+    // 3. Resolve Vendor & Local Vendor
+    if (initialData.localvendor && initialData.localvendor !== '-' && initialData.localvendor.trim() !== '') {
+      setIsLocalVendor(true);
+      const parts = initialData.localvendor.split(' - ');
+      setLocalVendorName(parts[0] || "");
+      setLocalVendorPhone(parts[1] || "");
+    } else {
+      setIsLocalVendor(false);
+      let vId = initialData.vendor_reference?.toString() || "";
+      if (!vId && (initialData.vendor_name || initialData.vendor) && vendors.length > 0) {
+        const vName = (initialData.vendor_name || initialData.vendor || "").toLowerCase().trim();
+        const vMatch = vendors.find((v) => v.vendor_name?.toLowerCase().trim() === vName);
+        if (vMatch) {
+          vId = vMatch.id.toString();
+        }
+      }
+      if (vId) {
+        setSelectedVendor(vId);
+      }
+    }
+
+    // 4. Resolve Cost
+    const rawCost = initialData.stock_cost ?? initialData.costprice ?? initialData.cost;
+    if (rawCost !== undefined && rawCost !== null && rawCost !== "") {
+      setCost(rawCost.toString());
+    }
+
+    // 5. Resolve Sale Price
+    const rawSale = initialData.sale_price ?? initialData.saleprice;
+    if (rawSale !== undefined && rawSale !== null && rawSale !== "") {
+      setSalePrice(rawSale.toString());
+    }
+
+    // 6. Resolve Serial
+    if (initialData.product_serial !== undefined && initialData.product_serial !== null) {
+      setProserial(initialData.product_serial);
+    }
+
+    // 7. Resolve Condition
+    if (initialData.condition) {
+      setCondition(initialData.condition);
+    }
+
+    // 8. Resolve Date
+    const rawDate = initialData.purchase_date || initialData.created_at;
+    if (rawDate) {
+      const parsed = new Date(rawDate);
+      if (!isNaN(parsed.getTime())) {
+        setDate(parsed);
+      }
+    }
+  }, [initialData, products, vendors]);
+
+  const productOptions = React.useMemo(() => {
+    const base = products.map((p) => ({
+      value: p.id.toString(),
+      label: p.product_name || "Unknown",
+    }));
+    if (selectedProduct && !base.some((opt) => opt.value === selectedProduct)) {
+      base.unshift({
+        value: selectedProduct,
+        label: initialData?.product_name || `Product #${selectedProduct}`,
+      });
+    }
+    return base;
+  }, [products, selectedProduct, initialData?.product_name]);
+
+  const vendorOptions = React.useMemo(() => {
+    const base = vendors.map((v) => ({
+      value: v.id.toString(),
+      label: v.vendor_name || "Unknown",
+    }));
+    if (selectedVendor && !base.some((opt) => opt.value === selectedVendor)) {
+      base.unshift({
+        value: selectedVendor,
+        label: initialData?.vendor_name || `Vendor #${selectedVendor}`,
+      });
+    }
+    return base;
+  }, [vendors, selectedVendor, initialData?.vendor_name]);
 
 
   const handleSave = () => {
@@ -111,10 +235,10 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
         <div className="space-y-2 flex flex-col">
           <Label htmlFor="product" className="text-zinc-600 font-normal">Product</Label>
           <Combobox
-            options={products.map((p) => ({ value: p.id.toString(), label: p.product_name || "Unknown" }))}
+            options={productOptions}
             value={selectedProduct}
             onChange={(val) => setSelectedProduct(val)}
-            placeholder="Select product"
+            placeholder={initialData?.product_name || "Select product"}
             searchPlaceholder="Search products..."
             className="w-full bg-zinc-50 border border-zinc-200 focus:ring-0 focus:ring-offset-0 h-12 rounded-lg text-zinc-800"
           />
@@ -161,10 +285,10 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
           <div className="space-y-2 flex flex-col">
             <Label htmlFor="vendor" className="text-zinc-600 font-normal">Vendor</Label>
             <Combobox
-              options={vendors.map((v) => ({ value: v.id.toString(), label: v.vendor_name || "Unknown" }))}
+              options={vendorOptions}
               value={selectedVendor}
               onChange={(val) => setSelectedVendor(val)}
-              placeholder="Select vendor"
+              placeholder={initialData?.vendor_name || "Select vendor"}
               searchPlaceholder="Search vendors..."
               className="w-full bg-zinc-50 border border-zinc-200 focus:ring-0 focus:ring-offset-0 h-12 rounded-lg text-zinc-800"
             />

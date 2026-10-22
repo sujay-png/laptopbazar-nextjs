@@ -1,13 +1,14 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
 /**
  * Gets the current user's business ID.
  * Reads from Supabase Auth user_metadata first (fastest + most reliable).
  * Falls back to looking up by email if metadata is not set.
  */
-export async function getCurrentBusinessId(): Promise<number | null> {
+export const getCurrentBusinessId = cache(async (): Promise<number | null> => {
     const supabase = await createClient();
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -23,8 +24,6 @@ export async function getCurrentBusinessId(): Promise<number | null> {
         return Number(metaBusinessId);
     }
 
-    console.warn('business_id not set in user metadata. Falling back to email lookup (may be ambiguous). Use setBusinessForUser() to fix this.');
-
     // 2. Fallback: look up by email — pick the first result (lowest id = oldest business)
     const { data: businesses, error } = await supabase
         .from('business')
@@ -38,8 +37,17 @@ export async function getCurrentBusinessId(): Promise<number | null> {
         return null;
     }
 
-    return businesses[0].id;
-}
+    const businessId = businesses[0].id;
+
+    // Self-heal: store in user_metadata so future calls skip the DB query
+    try {
+        supabase.auth.updateUser({ data: { business_id: businessId } }).catch(() => {});
+    } catch {
+        // ignore
+    }
+
+    return businessId;
+});
 
 /**
  * Sets the business_id in the auth user's metadata.

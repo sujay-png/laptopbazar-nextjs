@@ -23,7 +23,11 @@ export async function loadAllStocks() {
     return data.map((stock: any) => ({
         ...stock,
         id: stock.stock_id,
-        localvendor: stock.vendor_name || '-',
+        vendor_name: stock.vendor_name || '-',
+        localvendor: stock.localvendor || (stock.vendor_name && stock.vendor_name.includes(' - ') ? stock.vendor_name : null),
+        product_reference: stock.product_reference || stock.product_id || null,
+        stock_quantity: stock.stock_quantity || stock.quantity || '1',
+        qty: stock.stock_quantity || stock.quantity || '1',
         stock_cost: stock.costprice || 0,
         sale_price: stock.saleprice || 0,
         status: stock.isSold ? 'Sold' : 'Available',
@@ -212,31 +216,53 @@ export async function getStockForEdit(stockId: number) {
         return null;
     }
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('Stock')
         .select(`
             *,
             Purchases (
                 purchase_date,
                 purchase_price
+            ),
+            Products!Stock_product_reference_fkey (
+                id,
+                product_name
             )
         `)
-        .eq('id', stockId)
-        .eq('business_ref', businessId)
-        .single();
+        .eq('id', stockId);
+
+    if (businessId) {
+        query = query.eq('business_ref', businessId);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
         console.error('Error fetching stock for edit:', error);
         return null;
     }
 
-    if (data && data.Purchases) {
-        // Flatten for the frontend
-        const purchases = Array.isArray(data.Purchases) ? data.Purchases[0] : data.Purchases;
-        if (purchases) {
-            data.purchase_date = purchases.purchase_date;
-            data.stock_cost = purchases.purchase_price;
+    if (data) {
+        if (data.Purchases) {
+            // Flatten for the frontend
+            const purchases = Array.isArray(data.Purchases) ? data.Purchases[0] : data.Purchases;
+            if (purchases) {
+                data.purchase_date = purchases.purchase_date;
+                data.stock_cost = purchases.purchase_price;
+            }
         }
+        if (data.Products) {
+            const product = Array.isArray(data.Products) ? data.Products[0] : data.Products;
+            if (product) {
+                data.product_name = product.product_name;
+                if (!data.product_reference) {
+                    data.product_reference = product.id;
+                }
+            }
+        }
+        // Normalize quantity for frontend form
+        data.stock_quantity = data.stock_quantity || '1';
+        data.qty = data.stock_quantity;
     }
 
     return data;

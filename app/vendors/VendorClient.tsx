@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -11,45 +11,32 @@ import { Edit, MoreHorizontal, Search, BookText } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { VendorForm } from "@/features/addvendorsform/vendorsform";
-import { deletevendor } from "@/app/action/vendor";
-import { useRouter } from "next/navigation";
 import { DeleteDialog } from "@/components/DeleteDialog";
-import { toast } from "sonner";
 import { CustomPagination } from "@/components/CustomPagination";
-
-type Vendor = {
-    id: number;
-    vendor_name: string | null;
-    vendor_phone: string | null;
-    vendor_email: string | null;
-    balance?: number | null;
-    created_at: string;
-};
+import Link from "next/link";
+import { useVendorOperations, Vendor } from "./hooks/useVendorOperations";
 
 export function VendorClient({ vendors }: { vendors: Vendor[] }) {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-    const router = useRouter();
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const {
+        searchTerm,
+        setSearchTerm,
+        isDialogOpen,
+        setIsDialogOpen,
+        editingVendor,
+        setEditingVendor,
+        currentPage,
+        setCurrentPage,
+        itemsPerPage,
+        setItemsPerPage,
+        totalPages,
+        paginatedVendors,
+        isDeleting,
+        handleDelete,
+        handleViewLedger,
+    } = useVendorOperations(vendors);
 
     const formatCurrency = (val: number) =>
         new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(Math.abs(val));
-
-    const filteredVendors = useMemo(() => {
-        const lower = searchTerm.toLowerCase().trim();
-        if (!lower) return vendors;
-        return vendors.filter((v) =>
-            (v.vendor_name || "").toLowerCase().includes(lower) ||
-            (v.vendor_email || "").toLowerCase().includes(lower) ||
-            (v.vendor_phone || "").toLowerCase().includes(lower)
-        );
-    }, [searchTerm, vendors]);
-
-    const totalPages = Math.ceil(filteredVendors.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedVendors = filteredVendors.slice(startIndex, startIndex + itemsPerPage);
 
     return (
         <div className="flex-1 space-y-4 p-8 pt-6">
@@ -86,33 +73,45 @@ export function VendorClient({ vendors }: { vendors: Vendor[] }) {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-[80px]">ID</TableHead>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Email</TableHead>
-                                    <TableHead>Phone No</TableHead>
+                                    <TableHead>Phone</TableHead>
                                     <TableHead>Balance</TableHead>
                                     <TableHead>Created</TableHead>
                                     <TableHead className="text-right">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredVendors.length === 0 ? (
+                                {paginatedVendors.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                                             {searchTerm ? `No vendors matching "${searchTerm}"` : "No vendors found."}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     paginatedVendors.map((vendor) => {
-                                        const isOwed = (vendor.balance || 0) < 0;
+                                        const bal = vendor.balance ?? 0;
                                         return (
                                             <TableRow key={vendor.id}>
+                                                <TableCell className="font-medium text-muted-foreground">{vendor.id}</TableCell>
                                                 <TableCell className="font-medium">{vendor.vendor_name || "—"}</TableCell>
                                                 <TableCell>{vendor.vendor_email || "—"}</TableCell>
                                                 <TableCell>{vendor.vendor_phone || "—"}</TableCell>
-                                                <TableCell className="font-bold">
-                                                    <span className={isOwed ? "text-red-400" : "text-green-400"}>
-                                                        {formatCurrency(vendor.balance || 0)}
-                                                    </span>
+                                                <TableCell>
+                                                    {bal === 0 ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600">
+                                                            Settled
+                                                        </span>
+                                                    ) : bal > 0 ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+                                                            Advance: {formatCurrency(bal)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700">
+                                                            Payable: {formatCurrency(bal)}
+                                                        </span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     {vendor.created_at
@@ -128,6 +127,9 @@ export function VendorClient({ vendors }: { vendors: Vendor[] }) {
                                                             </Button>
                                                         } />
                                                         <DropdownMenuContent align="end" className="w-[160px]">
+                                                            <DropdownMenuItem onClick={() => handleViewLedger(vendor.id)} className="cursor-pointer">
+                                                                <BookText className="h-4 w-4 mr-2" /> View Ledger
+                                                            </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => setEditingVendor(vendor)}>
                                                                 <Edit className="h-4 w-4 mr-2" /> Edit
                                                             </DropdownMenuItem>
@@ -135,22 +137,15 @@ export function VendorClient({ vendors }: { vendors: Vendor[] }) {
                                                             <DeleteDialog
                                                                 title="Delete this vendor?"
                                                                 itemName={vendor.vendor_name || "this vendor"}
-                                                                onDelete={async () => {
-                                                                    const res = await deletevendor(vendor.id.toString());
-                                                                    if (res.success) {
-                                                                        toast.success("Vendor deleted successfully");
-                                                                        router.refresh();
-                                                                    } else {
-                                                                        toast.error(`Failed to delete vendor: ${res.error}`);
-                                                                    }
-                                                                }}
+                                                                onDelete={() => handleDelete(vendor.id)}
                                                             >
                                                                 <DropdownMenuItem
                                                                     className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
                                                                     onSelect={(e) => e.preventDefault()}
                                                                     closeOnClick={false}
+                                                                    disabled={isDeleting === vendor.id}
                                                                 >
-                                                                    Delete
+                                                                    {isDeleting === vendor.id ? "Deleting..." : "Delete"}
                                                                 </DropdownMenuItem>
                                                             </DeleteDialog>
                                                         </DropdownMenuContent>
@@ -165,7 +160,7 @@ export function VendorClient({ vendors }: { vendors: Vendor[] }) {
                     </div>
 
                     {totalPages > 0 && (
-                        <div className="p-4 border-t">
+                        <div className="mt-4">
                             <CustomPagination
                                 currentPage={currentPage}
                                 totalPages={totalPages}
@@ -178,7 +173,7 @@ export function VendorClient({ vendors }: { vendors: Vendor[] }) {
                 </CardContent>
             </Card>
 
-            {/* Edit Vendor Dialog */}
+            {/* Edit Dialog */}
             <Dialog open={!!editingVendor} onOpenChange={(open) => !open && setEditingVendor(null)}>
                 <DialogContent showCloseButton={false} className="p-0 border-none bg-transparent shadow-none max-w-2xl">
                     {editingVendor && (
