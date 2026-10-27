@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
@@ -17,6 +18,7 @@ import { CustomPagination } from "@/components/CustomPagination";
 import { useStockOperations } from "./hooks/useStockOperations";
 
 export function StockClient({ stocks }: { stocks: any[] }) {
+    const router = useRouter();
     const {
         searchTerm,
         setSearchTerm,
@@ -46,7 +48,7 @@ export function StockClient({ stocks }: { stocks: any[] }) {
                 <Dialog>
                     <DialogTrigger render={<ShimmerButton>Create Stock</ShimmerButton>} />
                     <DialogContent showCloseButton={false} className="p-0 border-none bg-transparent shadow-none max-w-2xl">
-                        <StockForm />
+                        <StockForm onSuccess={() => router.refresh()} />
                     </DialogContent>
                 </Dialog>
             </div>
@@ -235,7 +237,7 @@ export function StockClient({ stocks }: { stocks: any[] }) {
                             initialData={editingStock}
                             onSuccess={() => {
                                 setEditingStock(null);
-                                window.location.reload();
+                                router.refresh();
                             }}
                         />
                     )}
@@ -251,7 +253,7 @@ export function StockClient({ stocks }: { stocks: any[] }) {
                             onCancel={() => setSellingStock(null)}
                             onConfirm={() => {
                                 setSellingStock(null);
-                                window.location.reload();
+                                router.refresh();
                             }}
                         />
                     )}

@@ -120,7 +120,6 @@ export function useAddInvoiceForm() {
         discountVal,
         grandTotal,
         loading,
-
         // Handlers
         handleItemsAdded,
         handleRemoveItem,

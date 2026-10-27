@@ -22,6 +22,7 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
     const [isLoading, setIsLoading] = React.useState(false)
     const [categories, setCategories] = React.useState<any[]>([])
     const [isCategoryOpen, setIsCategoryOpen] = React.useState(false)
+    const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
     const router = useRouter()
 
     React.useEffect(() => {
@@ -36,10 +37,14 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
     const handleSaveExpense = async () => {
         setIsLoading(true)
         try {
+            const formattedDate = expenseDate
+                ? format(expenseDate, "yyyy-MM-dd")
+                : format(new Date(), "yyyy-MM-dd")
+
             await addexpense(
                 expenseName,
                 Number(amount),
-                expenseDate?.toISOString() || new Date().toISOString(),
+                formattedDate,
                 isPartsPurchase,
                 isParcelCharge,
                 category
@@ -123,9 +128,12 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
 
                 {/* Expense Date */}
                 <div className="border-b border-zinc-200 px-6 py-4">
-                    <Popover>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                         <PopoverTrigger render={
-                            <button className="w-full flex items-center justify-between bg-transparent border-none focus:outline-none text-left p-0">
+                            <button
+                                type="button"
+                                className="w-full flex items-center justify-between bg-transparent border-none focus:outline-none text-left p-0 cursor-pointer"
+                            >
                                 <div className="flex flex-col">
                                     <span className="text-sm font-medium text-zinc-700">Expense Date</span>
                                     <span className="text-xs text-zinc-500 mt-1">
@@ -139,7 +147,12 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
                             <Calendar
                                 mode="single"
                                 selected={expenseDate}
-                                onSelect={setExpenseDate}
+                                onSelect={(d) => {
+                                    if (d) {
+                                        setExpenseDate(d)
+                                        setIsCalendarOpen(false)
+                                    }
+                                }}
                             />
                         </PopoverContent>
                     </Popover>

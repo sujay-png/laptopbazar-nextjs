@@ -1,5 +1,6 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 import { getCurrentBusinessId } from "./business";
 
 export async function loadcustomers(search: string = "") {
@@ -60,6 +61,7 @@ export async function saveCustomer(formData: { name: string; email: string; phon
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/customer');
     return { success: true };
 }
 
@@ -84,6 +86,7 @@ export async function updateCustomer(formData: { id: string; name: string; email
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/customer');
     return { success: true };
 }
 
@@ -102,5 +105,6 @@ export async function deleteCustomer(id: string) {
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/customer');
     return { success: true };
 }

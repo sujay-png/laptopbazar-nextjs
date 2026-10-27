@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusinessId } from "./business";
+import { revalidatePath } from "next/cache";
 
 export async function loadBrand() {
     const supabase = await createClient();
@@ -76,6 +77,8 @@ export async function savebrand(name: string, description: string) {
         throw new Error(error.message);
     }
 
+    revalidatePath('/products/brands');
+    revalidatePath('/products');
     return data;
 }
 
@@ -102,6 +105,8 @@ export async function updatebrand(id: string, name: string, description: string)
         return [];
     }
 
+    revalidatePath('/products/brands');
+    revalidatePath('/products');
     return data;
 }
 
@@ -125,5 +130,7 @@ export async function deletebrand(id: string) {
         return [];
     }
 
+    revalidatePath('/products/brands');
+    revalidatePath('/products');
     return data;
 }

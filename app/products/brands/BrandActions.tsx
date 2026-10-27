@@ -16,19 +16,29 @@ interface Brand {
     description: string;
 }
 
-export function BrandActions({ brand }: { brand: Brand }) {
+export function BrandActions({ 
+    brand, 
+    onDelete 
+}: { 
+    brand: Brand; 
+    onDelete?: (id: string) => Promise<void> | void; 
+}) {
     const router = useRouter();
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleDelete = async () => {
         setIsDeleting(true);
         try {
-            await deletebrand(brand.id);
-            toast.success("Brand deleted successfully");
-            router.refresh();
-        } catch (error) {
+            if (onDelete) {
+                await onDelete(brand.id);
+            } else {
+                await deletebrand(brand.id);
+                toast.success("Brand deleted successfully");
+                router.refresh();
+            }
+        } catch (error: any) {
             console.error("Failed to delete brand", error);
-            toast.error("Failed to delete brand");
+            toast.error(error.message || "Failed to delete brand");
         } finally {
             setIsDeleting(false);
         }
@@ -43,7 +53,7 @@ export function BrandActions({ brand }: { brand: Brand }) {
                     </Button>
                 } />
                 <DialogContent showCloseButton={false} className="p-0 border-none bg-transparent shadow-none max-w-2xl">
-                    <BrandForm initialData={brand} />
+                    <BrandForm initialData={brand} onSuccess={() => router.refresh()} />
                 </DialogContent>
             </Dialog>
 

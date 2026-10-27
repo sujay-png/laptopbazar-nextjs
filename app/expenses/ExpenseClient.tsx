@@ -7,6 +7,22 @@ import { format } from "date-fns";
 import { CustomPagination } from "@/components/CustomPagination";
 import { useExpenseOperations } from "./hooks/useExpenseOperations";
 
+function formatExpenseDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return "-";
+    const parts = dateStr.split("T")[0].split("-");
+    if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        if (!isNaN(d.getTime())) {
+            return format(d, "dd MMM yyyy");
+        }
+    }
+    const d = new Date(dateStr);
+    return !isNaN(d.getTime()) ? format(d, "dd MMM yyyy") : "-";
+}
+
 export function ExpenseClient({ expenses }: { expenses: any[] }) {
     const {
         currentPage,
@@ -60,7 +76,7 @@ export function ExpenseClient({ expenses }: { expenses: any[] }) {
                                         {formatCurrency(e.amount || 0)}
                                     </TableCell>
                                     <TableCell className="py-3">
-                                        {e.expense_date ? format(new Date(e.expense_date), "dd MMM yyyy") : "-"}
+                                        {formatExpenseDate(e.expense_date)}
                                     </TableCell>
                                 </TableRow>
                             ))

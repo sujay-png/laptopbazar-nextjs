@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { deleteStock, getStockForEdit } from "@/app/action/stock";
 import { toast } from "sonner";
 
 export function useStockOperations(stocks: any[]) {
+    const router = useRouter();
     const searchParams = useSearchParams();
+    const [stockList, setStockList] = useState(stocks);
     const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
     const [monthFilter, setMonthFilter] = useState("all");
     const [editingStock, setEditingStock] = useState<any>(null);
@@ -15,9 +17,13 @@ export function useStockOperations(stocks: any[]) {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
+    useEffect(() => {
+        setStockList(stocks);
+    }, [stocks]);
+
     const availableMonths = useMemo(() => {
         const months = new Set<string>();
-        stocks.forEach(item => {
+        stockList.forEach(item => {
             if (item.created_at) {
                 const date = new Date(item.created_at);
                 const monthNames = [
@@ -29,9 +35,9 @@ export function useStockOperations(stocks: any[]) {
             }
         });
         return Array.from(months);
-    }, [stocks]);
+    }, [stockList]);
 
-    const filteredData = stocks.filter(item => {
+    const filteredData = stockList.filter(item => {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch =
             (item.product_name || "").toLowerCase().includes(searchLower) ||
@@ -104,11 +110,16 @@ export function useStockOperations(stocks: any[]) {
     const handleDeleteStock = async (stockId: number) => {
         setIsDeleting(stockId);
         try {
-            await deleteStock(stockId);
-            toast.success("Stock deleted successfully");
-            window.location.reload();
-        } catch (error) {
-            toast.error("Failed to delete stock");
+            const res = await deleteStock(stockId);
+            if (res.success) {
+                toast.success("Stock deleted successfully");
+                setStockList(prev => prev.filter(s => s.id !== stockId));
+                router.refresh();
+            } else {
+                toast.error(res.error || "Failed to delete stock");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to delete stock");
         } finally {
             setIsDeleting(null);
         }
@@ -137,4 +148,3 @@ export function useStockOperations(stocks: any[]) {
         handleDeleteStock,
     };
 }
-

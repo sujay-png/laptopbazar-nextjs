@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     fetchInvoiceById,
@@ -13,6 +14,7 @@ import { generateInvoicePdf } from "@/lib/invoicePdf";
 import { AccountsData } from "../accounts/types";
 
 export function useInvoiceOperations(initialInvoices: any[]) {
+    const router = useRouter();
     const [invoices, setInvoices] = useState(initialInvoices);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
@@ -30,6 +32,10 @@ export function useInvoiceOperations(initialInvoices: any[]) {
     const [editableDetails, setEditableDetails] = useState<any>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    useEffect(() => {
+        setInvoices(initialInvoices);
+    }, [initialInvoices]);
 
     // Sync selected invoice preview (instant from local cache + async fresh sync)
     useEffect(() => {
@@ -227,6 +233,7 @@ export function useInvoiceOperations(initialInvoices: any[]) {
                 setInvoices(prev => prev.map(inv => inv.id === returningInvoiceId ? { ...inv, isCancelled: true } : inv));
                 setReturningInvoiceId(null);
                 setReturnReason("");
+                router.refresh();
             } else {
                 toast.error(`Failed to cancel invoice: ${res.error}`);
             }
@@ -247,6 +254,7 @@ export function useInvoiceOperations(initialInvoices: any[]) {
                 if (selectedInvoiceId === invoiceId) {
                     setSelectedInvoiceId(null);
                 }
+                router.refresh();
             } else {
                 toast.error(`Failed to delete invoice: ${res.error}`);
             }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCustomer } from "@/app/action/customer";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ export type Customer = {
 
 export function useCustomerOperations(customers: Customer[]) {
     const router = useRouter();
+    const [customerList, setCustomerList] = useState(customers);
     const [searchTerm, setSearchTerm] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -22,15 +23,19 @@ export function useCustomerOperations(customers: Customer[]) {
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
+    useEffect(() => {
+        setCustomerList(customers);
+    }, [customers]);
+
     const filteredCustomers = useMemo(() => {
         const lower = searchTerm.toLowerCase().trim();
-        if (!lower) return customers;
-        return customers.filter((c) =>
+        if (!lower) return customerList;
+        return customerList.filter((c) =>
             (c.customer_name || "").toLowerCase().includes(lower) ||
             (c.customer_email || "").toLowerCase().includes(lower) ||
             (c.customer_phone || "").toLowerCase().includes(lower)
         );
-    }, [searchTerm, customers]);
+    }, [searchTerm, customerList]);
 
     const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -42,6 +47,7 @@ export function useCustomerOperations(customers: Customer[]) {
             const res = await deleteCustomer(customerId.toString());
             if (res.success) {
                 toast.success("Customer deleted successfully");
+                setCustomerList((prev) => prev.filter((c) => c.id !== customerId));
                 router.refresh();
             } else {
                 toast.error(`Failed to delete customer: ${res.error}`);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     fetchQuotationById,
@@ -11,6 +12,7 @@ import { generateQuotationPdf } from "@/lib/invoicePdf";
 import { AccountsData } from "../types";
 
 export function useQuotationOperations(initialInvoices: any[]) {
+    const router = useRouter();
     const [invoices, setInvoices] = useState(initialInvoices);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
@@ -23,6 +25,10 @@ export function useQuotationOperations(initialInvoices: any[]) {
     const [editableDetails, setEditableDetails] = useState<any>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    useEffect(() => {
+        setInvoices(initialInvoices);
+    }, [initialInvoices]);
 
     // Sync selected quotation preview (instant cached render + background refresh)
     useEffect(() => {
@@ -179,6 +185,7 @@ export function useQuotationOperations(initialInvoices: any[]) {
                 toast.success("Quotation deleted successfully.");
                 setInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
                 if (selectedInvoiceId === invoiceId) setSelectedInvoiceId(null);
+                router.refresh();
             } else {
                 toast.error(`Failed to delete quotation: ${res.error}`);
             }
@@ -224,7 +231,6 @@ export function useQuotationOperations(initialInvoices: any[]) {
         setItemsPerPage,
         totalPages,
         paginatedInvoices,
-
         // Operations
         handleDownloadPDF,
         handleEdit,

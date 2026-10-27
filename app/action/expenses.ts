@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 import { getCurrentBusinessId } from "./business";
 
 export async function loadexpense() {
@@ -62,13 +63,27 @@ export async function addexpense(expense_name: string, amount: number, expense_d
         }
     }
 
+    // Ensure expense_date is properly formatted as YYYY-MM-DD
+    let normalizedDate = expense_date;
+    if (normalizedDate) {
+        if (normalizedDate.includes('T')) {
+            normalizedDate = normalizedDate.split('T')[0];
+        }
+    } else {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        normalizedDate = `${yyyy}-${mm}-${dd}`;
+    }
+
     const { data, error } = await supabase
         .from('expenses')
         .insert([
             {
                 expense_name,
                 amount,
-                expense_date,
+                expense_date: normalizedDate,
                 is_parts_purchase,
                 is_parcel_charge,
                 category_ref,
@@ -84,6 +99,7 @@ export async function addexpense(expense_name: string, amount: number, expense_d
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/expenses');
     return { success: true };
 }
 export async function addcategory(category_name: string) {

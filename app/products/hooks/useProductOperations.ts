@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function useProductOperations(initialProducts: any[]) {
+    const [productList, setProductList] = useState(initialProducts);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
-    const filteredProducts = initialProducts.filter((product) => {
+    useEffect(() => {
+        setProductList(initialProducts);
+    }, [initialProducts]);
+
+    const filteredProducts = productList.filter((product) => {
         const searchLower = searchTerm.toLowerCase();
         return (
             (product.product_name || "").toLowerCase().includes(searchLower) ||
@@ -35,4 +40,3 @@ export function useProductOperations(initialProducts: any[]) {
         filteredProducts,
     };
 }
-

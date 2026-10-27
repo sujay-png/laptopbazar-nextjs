@@ -1,6 +1,7 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusinessId } from "./business";
+import { revalidatePath } from "next/cache";
 
 export async function loadTypes() {
     const supabase = await createClient();
@@ -44,6 +45,6 @@ export async function addType(typeName: string) {
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/products');
     return { success: true, data };
 }
-

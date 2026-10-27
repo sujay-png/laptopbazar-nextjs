@@ -1,6 +1,7 @@
 "use server";
-import { createClient } from "@/lib/supabase/server"
-import { getCurrentBusinessId } from "./business"
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { getCurrentBusinessId } from "./business";
 
 export async function loadVendor() {
     const supabase = await createClient();
@@ -72,6 +73,7 @@ export async function savevendor(formData: { name: string; email: string; phone:
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/vendors');
     return { success: true };
 }
 export async function updatevendor(formData: { id: string; name: string; email: string; phone: string; address: string }) {
@@ -96,6 +98,7 @@ export async function updatevendor(formData: { id: string; name: string; email: 
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/vendors');
     return { success: true };
 }
 export async function deletevendor(id: string) {
@@ -116,5 +119,6 @@ export async function deletevendor(id: string) {
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/vendors');
     return { success: true };
 }

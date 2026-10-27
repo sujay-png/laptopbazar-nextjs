@@ -70,6 +70,7 @@ export async function deleteproducts(id: number) {
     if (error) {
         throw error;
     }
+    revalidatePath("/products");
     return { success: true };
 }
 

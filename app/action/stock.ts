@@ -155,10 +155,12 @@ export async function saveStock(values: {
 
     if (error) {
         console.error('Error saving stock:', error);
+        revalidatePath('/products/stocks');
         revalidatePath('/products');
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/products/stocks');
     revalidatePath('/products');
     return { success: true };
 }
@@ -205,6 +207,7 @@ export async function deleteStock(stockId: number) {
     }
 
     revalidatePath('/products/stocks');
+    revalidatePath('/products');
     return { success: true };
 }
 
@@ -336,6 +339,7 @@ export async function updateStockDetails(stockId: number, values: {
     }
 
     revalidatePath('/products/stocks');
+    revalidatePath('/products');
     return { success: true };
 }
 
@@ -518,5 +522,7 @@ export async function savepayments(values: {
     }
 
     revalidatePath('/products/stocks');
+    revalidatePath('/accounts');
+    revalidatePath('/products');
     return { success: true };
 }

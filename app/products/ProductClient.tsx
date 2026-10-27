@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import { CustomPagination } from "@/components/CustomPagination";
 import { useProductOperations } from "./hooks/useProductOperations";
 
 export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
+    const router = useRouter();
     const {
         searchTerm,
         setSearchTerm,
@@ -41,7 +43,7 @@ export function ProductClient({ initialProducts }: { initialProducts: any[] }) {
                         }
                     />
                     <DialogContent showCloseButton={false} className="p-0 border-none bg-transparent shadow-none max-w-2xl">
-                        <ProductsForm />
+                        <ProductsForm onSuccess={() => router.refresh()} />
                     </DialogContent>
                 </Dialog>
             </div>

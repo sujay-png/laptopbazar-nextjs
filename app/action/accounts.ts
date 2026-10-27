@@ -170,6 +170,8 @@ export async function returnInvoice(invoiceId: number, reason?: string) {
 
         if (invErr) throw invErr;
 
+        revalidatePath('/accounts');
+        revalidatePath('/products/stocks');
         return { success: true };
     } catch (e: any) {
         console.error('Return invoice failed:', e);
@@ -220,6 +222,8 @@ export async function deleteInvoice(invoiceId: number) {
 
         if (invErr) throw invErr;
 
+        revalidatePath('/accounts');
+        revalidatePath('/products/stocks');
         return { success: true };
     } catch (e: any) {
         console.error('Delete invoice failed:', e);
@@ -363,6 +367,8 @@ export async function createInvoice(data: {
             if (payError) throw payError;
         }
 
+        revalidatePath('/accounts');
+        revalidatePath('/products/stocks');
         return { success: true, invoiceId };
     } catch (e: any) {
         console.error('Invoice creation failed:', e);
@@ -577,6 +583,7 @@ export async function updateFullInvoice(invoiceData: any) {
                 .eq('id', invoiceData.payments[0].id);
         }
 
+        revalidatePath('/accounts');
         return { success: true };
     } catch (e: any) {
         console.error('Full invoice update failed:', e);
@@ -602,6 +609,7 @@ export async function deleteQuotation(id: number) {
         return { success: false, error: error.message };
     }
 
+    revalidatePath('/accounts/Quotation');
     return { success: true };
 }
 
@@ -671,6 +679,7 @@ export async function updateQuotation(formData: {
         return { success: false, error: quotUpdateErr.message };
     }
 
+    revalidatePath('/accounts/Quotation');
     return { success: true };
 }
 
@@ -781,6 +790,7 @@ export async function createquotation(data: {
 
         if (quotError) throw quotError;
 
+        revalidatePath('/accounts/Quotation');
         return { success: true, quotationId: quotationResult.id };
     } catch (e: any) {
         console.error('Quotation creation failed:', e);

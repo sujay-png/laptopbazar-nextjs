@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,6 +14,7 @@ import { CustomPagination } from "@/components/CustomPagination";
 import { useBrandOperations } from "./hooks/useBrandOperations";
 
 export function BrandClient({ brands }: { brands: any[] }) {
+    const router = useRouter();
     const {
         searchTerm,
         setSearchTerm,
@@ -22,6 +24,7 @@ export function BrandClient({ brands }: { brands: any[] }) {
         setItemsPerPage,
         totalPages,
         paginatedBrands,
+        handleDeleteBrand,
     } = useBrandOperations(brands);
 
     return (
@@ -31,7 +34,7 @@ export function BrandClient({ brands }: { brands: any[] }) {
                 <Dialog>
                     <DialogTrigger render={<ShimmerButton>Create Brands</ShimmerButton>} />
                     <DialogContent showCloseButton={false} className="p-0 border-none bg-transparent shadow-none max-w-2xl">
-                        <BrandForm />
+                        <BrandForm onSuccess={() => router.refresh()} />
                     </DialogContent>
                 </Dialog>
             </div>
@@ -76,7 +79,7 @@ export function BrandClient({ brands }: { brands: any[] }) {
                                             <TableCell>{brand.description || "—"}</TableCell>
                                             <TableCell className="font-mono text-xs">{brand.reference || "—"}</TableCell>
                                             <TableCell>
-                                                <BrandActions brand={brand} />
+                                                <BrandActions brand={brand} onDelete={handleDeleteBrand} />
                                             </TableCell>
                                         </TableRow>
                                     ))
