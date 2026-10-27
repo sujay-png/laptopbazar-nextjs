@@ -7,17 +7,34 @@ import { useRouter } from "next/navigation"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { Switch } from "@/components/ui/switch"
-import { addexpense, loadExpenseCategories } from "@/app/action/expenses"
+import { addexpense, updateexpense, loadExpenseCategories } from "@/app/action/expenses"
 import { format } from "date-fns"
 import { ShimmerButton } from "@/components/ui/shimmer-button"
+import { toast } from "sonner"
 
-export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
-    const [expenseName, setExpenseName] = React.useState("")
-    const [amount, setAmount] = React.useState("")
-    const [category, setCategory] = React.useState("")
-    const [expenseDate, setExpenseDate] = React.useState<Date | undefined>(new Date())
-    const [isPartsPurchase, setIsPartsPurchase] = React.useState(false)
-    const [isParcelCharge, setIsParcelCharge] = React.useState(false)
+function parseLocalDate(dateStr: string | null | undefined): Date | undefined {
+    if (!dateStr) return undefined;
+    const parts = dateStr.split("T")[0].split("-");
+    if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        if (!isNaN(d.getTime())) return d;
+    }
+    const fallback = new Date(dateStr);
+    return isNaN(fallback.getTime()) ? undefined : fallback;
+}
+
+export function ExpenseForm({ onSuccess, initialData }: { onSuccess?: () => void; initialData?: any }) {
+    const [expenseName, setExpenseName] = React.useState(initialData?.expense_name || "")
+    const [amount, setAmount] = React.useState(initialData?.amount != null ? String(initialData.amount) : "")
+    const [category, setCategory] = React.useState(initialData?.category_name || "")
+    const [expenseDate, setExpenseDate] = React.useState<Date | undefined>(
+        initialData?.expense_date ? parseLocalDate(initialData.expense_date) : new Date()
+    )
+    const [isPartsPurchase, setIsPartsPurchase] = React.useState(initialData?.is_parts_purchase ?? false)
+    const [isParcelCharge, setIsParcelCharge] = React.useState(initialData?.is_parcel_charge ?? false)
 
     const [isLoading, setIsLoading] = React.useState(false)
     const [categories, setCategories] = React.useState<any[]>([])
@@ -29,32 +46,75 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
         loadExpenseCategories().then(setCategories)
     }, [])
 
+    React.useEffect(() => {
+        if (initialData) {
+            setExpenseName(initialData.expense_name || "")
+            setAmount(initialData.amount != null ? String(initialData.amount) : "")
+            setCategory(initialData.category_name || "")
+            setExpenseDate(initialData.expense_date ? parseLocalDate(initialData.expense_date) : new Date())
+            setIsPartsPurchase(initialData.is_parts_purchase ?? false)
+            setIsParcelCharge(initialData.is_parcel_charge ?? false)
+        }
+    }, [initialData])
+
     const filteredCategories = React.useMemo(() => {
         if (!category) return categories
         return categories.filter(c => c.category_name.toLowerCase().includes(category.toLowerCase()))
     }, [category, categories])
 
     const handleSaveExpense = async () => {
+        if (!expenseName.trim()) {
+            toast.error("Please enter an expense name")
+            return
+        }
+        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            toast.error("Please enter a valid amount")
+            return
+        }
+
         setIsLoading(true)
         try {
             const formattedDate = expenseDate
                 ? format(expenseDate, "yyyy-MM-dd")
                 : format(new Date(), "yyyy-MM-dd")
 
-            await addexpense(
-                expenseName,
-                Number(amount),
-                formattedDate,
-                isPartsPurchase,
-                isParcelCharge,
-                category
-            )
-
-
-            if (onSuccess) onSuccess()
-            router.refresh()
+            if (initialData?.id) {
+                const res = await updateexpense(
+                    initialData.id,
+                    expenseName,
+                    Number(amount),
+                    formattedDate,
+                    isPartsPurchase,
+                    isParcelCharge,
+                    category
+                )
+                if (res.success) {
+                    toast.success("Expense updated successfully")
+                    if (onSuccess) onSuccess()
+                    router.refresh()
+                } else {
+                    toast.error(res.error || "Failed to update expense")
+                }
+            } else {
+                const res = await addexpense(
+                    expenseName,
+                    Number(amount),
+                    formattedDate,
+                    isPartsPurchase,
+                    isParcelCharge,
+                    category
+                )
+                if (res.success) {
+                    toast.success("Expense added successfully")
+                    if (onSuccess) onSuccess()
+                    router.refresh()
+                } else {
+                    toast.error(res.error || "Failed to add expense")
+                }
+            }
         } catch (err: any) {
             console.error(err)
+            toast.error(err.message || "Failed to save expense")
         } finally {
             setIsLoading(false)
         }
@@ -64,7 +124,7 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
         <div className="w-full max-w-2xl bg-[#fafafa] text-zinc-800 rounded-xl border border-zinc-200 shadow-2xl p-0 font-sans overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 bg-white">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
-                    Add Expense
+                    {initialData ? "Edit Expense" : "Add Expense"}
                 </h2>
                 <DialogClose render={<button className="text-zinc-400 hover:text-zinc-800 transition-colors" />}>
                     <X className="h-5 w-5" />
@@ -183,9 +243,8 @@ export function ExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
                 <ShimmerButton
                     onClick={handleSaveExpense}
                     disabled={isLoading}
-
                 >
-                    {isLoading ? "Saving..." : "Save Expense"}
+                    {isLoading ? "Saving..." : initialData ? "Update Expense" : "Save Expense"}
                 </ShimmerButton>
             </div>
         </div>

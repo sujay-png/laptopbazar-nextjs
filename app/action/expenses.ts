@@ -60,6 +60,19 @@ export async function addexpense(expense_name: string, amount: number, expense_d
             .single();
         if (catData) {
             category_ref = catData.id;
+        } else if (category_name.trim()) {
+            const { data: newCat } = await supabase
+                .from('expense_categories')
+                .insert({
+                    category_name: category_name.trim(),
+                    business_ref: businessId,
+                    created_at: new Date().toISOString(),
+                })
+                .select('id')
+                .single();
+            if (newCat) {
+                category_ref = newCat.id;
+            }
         }
     }
 
@@ -102,6 +115,107 @@ export async function addexpense(expense_name: string, amount: number, expense_d
     revalidatePath('/expenses');
     return { success: true };
 }
+
+export async function updateexpense(
+    id: number,
+    expense_name: string,
+    amount: number,
+    expense_date: string,
+    is_parts_purchase: boolean,
+    is_parcel_charge: boolean,
+    category_name: string
+) {
+    const supabase = await createClient();
+    const businessId = await getCurrentBusinessId();
+
+    if (!businessId) {
+        return { success: false, error: 'No business selected' };
+    }
+
+    let category_ref = null;
+    if (category_name) {
+        const { data: catData } = await supabase
+            .from('expense_categories')
+            .select('id')
+            .eq('category_name', category_name)
+            .eq('business_ref', businessId)
+            .single();
+        if (catData) {
+            category_ref = catData.id;
+        } else if (category_name.trim()) {
+            const { data: newCat } = await supabase
+                .from('expense_categories')
+                .insert({
+                    category_name: category_name.trim(),
+                    business_ref: businessId,
+                    created_at: new Date().toISOString(),
+                })
+                .select('id')
+                .single();
+            if (newCat) {
+                category_ref = newCat.id;
+            }
+        }
+    }
+
+    let normalizedDate = expense_date;
+    if (normalizedDate) {
+        if (normalizedDate.includes('T')) {
+            normalizedDate = normalizedDate.split('T')[0];
+        }
+    } else {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        normalizedDate = `${yyyy}-${mm}-${dd}`;
+    }
+
+    const { error } = await supabase
+        .from('expenses')
+        .update({
+            expense_name,
+            amount,
+            expense_date: normalizedDate,
+            is_parts_purchase,
+            is_parcel_charge,
+            category_ref,
+        })
+        .eq('id', id)
+        .eq('business_ref', businessId);
+
+    if (error) {
+        console.error('Error updating expense:', error);
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath('/expenses');
+    return { success: true };
+}
+
+export async function deleteexpense(id: number) {
+    const supabase = await createClient();
+    const businessId = await getCurrentBusinessId();
+
+    if (!businessId) {
+        return { success: false, error: 'No business selected' };
+    }
+
+    const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', id)
+        .eq('business_ref', businessId);
+
+    if (error) {
+        console.error('Error deleting expense:', error);
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath('/expenses');
+    return { success: true };
+}
+
 export async function addcategory(category_name: string) {
     const supabase = await createClient();
     const businessId = await getCurrentBusinessId();

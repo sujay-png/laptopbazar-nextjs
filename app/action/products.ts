@@ -144,3 +144,16 @@ export async function fetchbrand() {
     return data;
 }
 
+export async function deletebrand(id: number) {
+    const supabase = await createClient();
+    const businessId = await getCurrentBusinessId();
+    if (!businessId) {
+        throw new Error("No business selected");
+    }
+    const { error } = await supabase.from("Brand").delete().eq("id", id).eq("business_ref", businessId);
+    if (error) {
+        throw error;
+    }
+    revalidatePath("/products");
+    return { success: true };
+}
