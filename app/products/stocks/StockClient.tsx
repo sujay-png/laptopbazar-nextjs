@@ -16,6 +16,7 @@ import { SellStockForm } from "@/features/sellstockform/sellstockform";
 import { DeleteDialog } from "@/components/DeleteDialog";
 import { CustomPagination } from "@/components/CustomPagination";
 import { useStockOperations } from "./hooks/useStockOperations";
+import { formatDisplayDate } from "@/lib/dateUtils";
 
 export function StockClient({ stocks }: { stocks: any[] }) {
     const router = useRouter();
@@ -146,13 +147,7 @@ export function StockClient({ stocks }: { stocks: any[] }) {
                                                     <TableCell>{stock.sale_price || "-"}</TableCell>
                                                     <TableCell>{stock.condition || "-"}</TableCell>
                                                     <TableCell className="text-right">
-                                                        {stock.created_at
-                                                            ? new Intl.DateTimeFormat("en-GB", {
-                                                                  day: "numeric",
-                                                                  month: "numeric",
-                                                                  year: "numeric",
-                                                              }).format(new Date(stock.created_at))
-                                                            : "-"}
+                                                        {formatDisplayDate(stock.created_at)}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <span
@@ -250,6 +245,7 @@ export function StockClient({ stocks }: { stocks: any[] }) {
                     {sellingStock && (
                         <SellStockForm
                             stockId={sellingStock.id}
+                            defaultAmount={sellingStock.sale_price ? String(sellingStock.sale_price) : ""}
                             onCancel={() => setSellingStock(null)}
                             onConfirm={() => {
                                 setSellingStock(null);

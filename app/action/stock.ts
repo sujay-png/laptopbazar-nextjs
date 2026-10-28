@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getCurrentBusinessId } from "./business";
+import { parseStockDate } from "@/lib/dateUtils";
 
 export async function loadAllStocks() {
     const supabase = await createClient();
@@ -120,12 +121,25 @@ export async function saveStock(values: {
     }
 
     // 1. Insert into Purchases
+    let purchaseDate = values.purchase_date;
+    if (purchaseDate) {
+        if (purchaseDate.includes('T')) {
+            purchaseDate = purchaseDate.split('T')[0];
+        }
+    } else {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        purchaseDate = `${yyyy}-${mm}-${dd}`;
+    }
+
     const { data: purchaseData, error: purchaseError } = await supabase
         .from('Purchases')
         .insert({
             business_ref: businessId,
             vendor_reference: values.vendor_reference,
-            purchase_date: values.purchase_date || new Date().toISOString(),
+            purchase_date: purchaseDate,
             purchase_price: values.stock_cost ? parseFloat(values.stock_cost) : 0,
         })
         .select('id')
@@ -324,12 +338,21 @@ export async function updateStockDetails(stockId: number, values: {
 
     // Update Purchases
     if (currentStock?.purchases_ref) {
+        let purchaseDate = values.purchase_date;
+        if (purchaseDate && purchaseDate.includes('T')) {
+            purchaseDate = purchaseDate.split('T')[0];
+        }
+
+        const updatePayload: any = {
+            purchase_price: values.stock_cost ? parseFloat(values.stock_cost) : 0,
+        };
+        if (purchaseDate) {
+            updatePayload.purchase_date = purchaseDate;
+        }
+
         const { error: purchaseError } = await supabase
             .from('Purchases')
-            .update({
-                purchase_date: values.purchase_date,
-                purchase_price: values.stock_cost ? parseFloat(values.stock_cost) : 0,
-            })
+            .update(updatePayload)
             .eq('id', currentStock.purchases_ref)
             .eq('business_ref', businessId);
 
@@ -352,6 +375,7 @@ export async function savepayments(values: {
     invoice_id?: string | null;
     customer_id?: string | null;
     sale_price?: string | null;
+    sale_date?: string | null;
     isAddingNew?: boolean;
     newCustomerName?: string;
     newCustomerPhone?: string;
@@ -362,6 +386,21 @@ export async function savepayments(values: {
 
     if (!businessId) {
         return { success: false, error: 'Unauthorized' };
+    }
+
+    let finalSaleDate: string;
+    if (values.sale_date) {
+        const parsed = parseStockDate(values.sale_date);
+        if (parsed) {
+            const yyyy = parsed.getFullYear();
+            const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+            const dd = String(parsed.getDate()).padStart(2, '0');
+            finalSaleDate = `${yyyy}-${mm}-${dd}T12:00:00.000Z`;
+        } else {
+            finalSaleDate = values.sale_date;
+        }
+    } else {
+        finalSaleDate = new Date().toISOString();
     }
 
     const paymentAmount = values.amount ? parseFloat(values.amount) : 0;
@@ -376,6 +415,7 @@ export async function savepayments(values: {
             narration: values.narration,
             invoice_reference: values.invoice_id ? parseInt(values.invoice_id) : null,
             payment_status: paymentAmount > 0,
+            created_at: finalSaleDate,
         })
         .select('id')
         .single();
@@ -424,7 +464,7 @@ export async function savepayments(values: {
                 invoices_no: invoiceNumber,
                 customer_ref: parseInt(finalCustomerId),
                 business_ref: businessId,
-                invoices_date: now.toISOString(),
+                invoices_date: finalSaleDate,
                 invoices_grandTotal: parseFloat(values.sale_price || "0"),
                 payment_amount: parseFloat(values.amount || "0"),
                 isDraft: false,
@@ -470,7 +510,7 @@ export async function savepayments(values: {
         await supabase.from('sales').insert({
             stock_ref: values.stock_id,
             sale_price: parseFloat(values.sale_price || "0"),
-            sale_date: now.toISOString(),
+            sale_date: finalSaleDate,
             business_ref: businessId,
             invoice_ref: newInvoiceId,
         });
@@ -524,5 +564,6 @@ export async function savepayments(values: {
     revalidatePath('/products/stocks');
     revalidatePath('/accounts');
     revalidatePath('/products');
+    revalidatePath('/dashboard');
     return { success: true };
 }

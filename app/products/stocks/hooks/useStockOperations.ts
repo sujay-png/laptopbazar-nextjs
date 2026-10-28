@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { deleteStock, getStockForEdit } from "@/app/action/stock";
 import { toast } from "sonner";
+import { parseStockDate } from "@/lib/dateUtils";
 
 export function useStockOperations(stocks: any[]) {
     const router = useRouter();
@@ -25,13 +26,15 @@ export function useStockOperations(stocks: any[]) {
         const months = new Set<string>();
         stockList.forEach(item => {
             if (item.created_at) {
-                const date = new Date(item.created_at);
-                const monthNames = [
-                    "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
-                    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
-                ];
-                const monthStr = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-                months.add(monthStr);
+                const date = parseStockDate(item.created_at);
+                if (date) {
+                    const monthNames = [
+                        "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+                        "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+                    ];
+                    const monthStr = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+                    months.add(monthStr);
+                }
             }
         });
         return Array.from(months);
@@ -47,13 +50,17 @@ export function useStockOperations(stocks: any[]) {
 
         let matchesMonth = true;
         if (monthFilter !== "all" && item.created_at) {
-            const date = new Date(item.created_at);
-            const monthNames = [
-                "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
-                "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
-            ];
-            const itemMonth = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-            matchesMonth = itemMonth === monthFilter;
+            const date = parseStockDate(item.created_at);
+            if (date) {
+                const monthNames = [
+                    "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+                    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+                ];
+                const itemMonth = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+                matchesMonth = itemMonth === monthFilter;
+            } else {
+                matchesMonth = false;
+            }
         }
 
         return matchesSearch && matchesMonth;
@@ -66,7 +73,7 @@ export function useStockOperations(stocks: any[]) {
     const groupedData = useMemo(() => {
         const groups: { [key: string]: any[] } = {};
         paginatedData.forEach(item => {
-            const date = item.created_at ? new Date(item.created_at) : new Date(2000, 0, 1);
+            const date = parseStockDate(item.created_at) || new Date(2000, 0, 1);
             const monthNames = [
                 "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
                 "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
@@ -84,7 +91,11 @@ export function useStockOperations(stocks: any[]) {
 
         return sortedKeys.map(key => ({
             month: key,
-            items: groups[key].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+            items: groups[key].sort((a, b) => {
+                const dateB = parseStockDate(b.created_at)?.getTime() || 0;
+                const dateA = parseStockDate(a.created_at)?.getTime() || 0;
+                return dateB - dateA;
+            })
         }));
     }, [paginatedData]);
 

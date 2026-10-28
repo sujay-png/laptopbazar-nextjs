@@ -22,16 +22,17 @@ import { useStockFormData } from "@/app/hooks/useStockFormData"
 import { saveStock, updateStockDetails } from "@/app/action/stock"
 import { useRouter } from "next/navigation"
 import { ShimmerButton } from "@/components/ui/shimmer-button"
+import { parseStockDate, formatDateToYMD } from "@/lib/dateUtils"
+import { format } from "date-fns"
 
 export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, initialData?: any }) {
   const router = useRouter()
   const [date, setDate] = React.useState<Date | undefined>(
-    initialData?.purchase_date
-      ? new Date(initialData.purchase_date)
-      : initialData?.created_at
-      ? new Date(initialData.created_at)
-      : undefined
+    initialData
+      ? parseStockDate(initialData.purchase_date || initialData.created_at)
+      : new Date()
   )
+  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const [isLocalVendor, setIsLocalVendor] = React.useState(
     !!initialData?.localvendor && initialData.localvendor !== '-'
   )
@@ -145,8 +146,8 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
     // 8. Resolve Date
     const rawDate = initialData.purchase_date || initialData.created_at;
     if (rawDate) {
-      const parsed = new Date(rawDate);
-      if (!isNaN(parsed.getTime())) {
+      const parsed = parseStockDate(rawDate);
+      if (parsed) {
         setDate(parsed);
       }
     }
@@ -196,7 +197,7 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
           qty: qty,
           sale_price: salePrice ? parseFloat(salePrice) : 0,
           condition: condition,
-          purchase_date: date ? date.toISOString() : null,
+          purchase_date: formatDateToYMD(date),
         }
 
         const res = initialData?.id
@@ -357,17 +358,20 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
         {/* Purchase Date */}
         <div className="space-y-2 flex flex-col">
           <Label className="text-zinc-600 font-normal">Purchase Date</Label>
-          <Popover>
+          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
             <PopoverTrigger
               render={
                 <Button
+                  type="button"
                   variant={"outline"}
                   className={cn(
                     "w-full justify-between text-left font-normal bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 hover:text-zinc-800 h-12 rounded-lg px-4",
                     !date && "text-zinc-400"
                   )}
                 >
-                  {date ? date.toLocaleDateString() : <span></span>}
+                  <span className="text-zinc-800 text-sm">
+                    {date ? format(date, "dd MMM yyyy") : "Select purchase date"}
+                  </span>
                   <CalendarIcon className="h-5 w-5 text-zinc-400" />
                 </Button>
               }
@@ -376,7 +380,12 @@ export function StockForm({ onSuccess, initialData }: { onSuccess?: () => void, 
               <Calendar
                 mode="single"
                 selected={date}
-                onSelect={setDate}
+                onSelect={(d) => {
+                  if (d) {
+                    setDate(d);
+                    setIsCalendarOpen(false);
+                  }
+                }}
                 className="bg-white text-zinc-800"
               />
             </PopoverContent>

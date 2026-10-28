@@ -16,6 +16,16 @@ import { loadcustomers } from "@/app/action/customer"
 import { savepayments } from "@/app/action/stock"
 import { ShimmerButton } from "@/components/ui/shimmer-button"
 import { toast } from "sonner"
+import { CalendarIcon } from "lucide-react"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils"
+import { format } from "date-fns"
+import { formatDateToYMD } from "@/lib/dateUtils"
 
 export function SellStockForm({
     stockId,
@@ -38,6 +48,9 @@ export function SellStockForm({
     const [customerId, setCustomerId] = React.useState<string | null>(null)
     const [customers, setCustomers] = React.useState<any[]>([])
     const [salePrice, setSalePrice] = React.useState(defaultAmount)
+    const [saleDate, setSaleDate] = React.useState<Date | undefined>(new Date())
+    const [isCalendarOpenStep1, setIsCalendarOpenStep1] = React.useState(false)
+    const [isCalendarOpenStep2, setIsCalendarOpenStep2] = React.useState(false)
 
     // New Customer State
     const [isAddingNew, setIsAddingNew] = React.useState(false)
@@ -106,6 +119,7 @@ export function SellStockForm({
                 invoice_id: invoiceId ? String(invoiceId) : null,
                 customer_id: customerId,
                 sale_price: salePrice,
+                sale_date: saleDate ? formatDateToYMD(saleDate) : null,
                 isAddingNew,
                 newCustomerName,
                 newCustomerPhone,
@@ -113,6 +127,7 @@ export function SellStockForm({
             }
             const res = await savepayments(values)
             if (res.success) {
+                toast.success("Sale completed successfully")
                 if (onConfirm) onConfirm()
             } else {
                 toast.error(res.error || "Failed to record payment");
@@ -174,18 +189,56 @@ export function SellStockForm({
                         </Button>
                     </div>
 
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-medium text-zinc-700">Payment Method</Label>
-                        <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value || "Cash")}>
-                            <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 focus:ring-2 focus:ring-zinc-900 h-11 rounded-lg text-zinc-900 px-3">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border-zinc-200 text-zinc-900">
-                                <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="UPI">UPI</SelectItem>
-                                <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                            </SelectContent>
-                        </Select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-zinc-700">Payment Method</Label>
+                            <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value || "Cash")}>
+                                <SelectTrigger className="w-full bg-zinc-50 border-zinc-200 focus:ring-2 focus:ring-zinc-900 h-11 rounded-lg text-zinc-900 px-3">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-zinc-200 text-zinc-900">
+                                    <SelectItem value="Cash">Cash</SelectItem>
+                                    <SelectItem value="UPI">UPI</SelectItem>
+                                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-zinc-700">Sale Date</Label>
+                            <Popover open={isCalendarOpenStep2} onOpenChange={setIsCalendarOpenStep2}>
+                                <PopoverTrigger
+                                    render={
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className={cn(
+                                                "w-full justify-between text-left font-normal bg-zinc-50 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900 h-11 rounded-lg px-3",
+                                                !saleDate && "text-zinc-400"
+                                            )}
+                                        >
+                                            <span className="text-zinc-800 text-sm font-medium">
+                                                {saleDate ? format(saleDate, "dd MMM yyyy") : "Select date"}
+                                            </span>
+                                            <CalendarIcon className="h-4 w-4 text-zinc-500" />
+                                        </Button>
+                                    }
+                                />
+                                <PopoverContent className="w-auto p-0 bg-white border-zinc-200 text-zinc-800" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={saleDate}
+                                        onSelect={(d) => {
+                                            if (d) {
+                                                setSaleDate(d);
+                                                setIsCalendarOpenStep2(false);
+                                            }
+                                        }}
+                                        className="bg-white text-zinc-800"
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
                     </div>
 
                     <div className="space-y-1.5">
@@ -396,21 +449,61 @@ export function SellStockForm({
                     )}
                 </div>
 
-                {/* Sale Price Section */}
-                <div className="space-y-1.5">
-                    <Label htmlFor="salePrice" className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">
-                        Sale Price
-                    </Label>
-                    <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-medium">₹</span>
-                        <Input
-                            id="salePrice"
-                            type="number"
-                            placeholder="Enter selling price"
-                            value={salePrice}
-                            onChange={(e) => setSalePrice(e.target.value)}
-                            className="w-full bg-zinc-50 border-zinc-200 focus-visible:ring-2 focus-visible:ring-zinc-900 h-11 rounded-lg text-zinc-900 pl-8 pr-4 font-semibold text-base placeholder:font-normal placeholder:text-sm placeholder:text-zinc-400"
-                        />
+                {/* Sale Price & Sale Date Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="salePrice" className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">
+                            Sale Price
+                        </Label>
+                        <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-medium">₹</span>
+                            <Input
+                                id="salePrice"
+                                type="number"
+                                placeholder="Enter selling price"
+                                value={salePrice}
+                                onChange={(e) => setSalePrice(e.target.value)}
+                                className="w-full bg-zinc-50 border-zinc-200 focus-visible:ring-2 focus-visible:ring-zinc-900 h-11 rounded-lg text-zinc-900 pl-8 pr-4 font-semibold text-base placeholder:font-normal placeholder:text-sm placeholder:text-zinc-400"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">
+                            Sale Date
+                        </Label>
+                        <Popover open={isCalendarOpenStep1} onOpenChange={setIsCalendarOpenStep1}>
+                            <PopoverTrigger
+                                render={
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className={cn(
+                                            "w-full justify-between text-left font-normal bg-zinc-50 border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900 h-11 rounded-lg px-3",
+                                            !saleDate && "text-zinc-400"
+                                        )}
+                                    >
+                                        <span className="text-zinc-800 text-sm font-medium">
+                                            {saleDate ? format(saleDate, "dd MMM yyyy") : "Select date"}
+                                        </span>
+                                        <CalendarIcon className="h-4 w-4 text-zinc-500" />
+                                    </Button>
+                                }
+                            />
+                            <PopoverContent className="w-auto p-0 bg-white border-zinc-200 text-zinc-800" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={saleDate}
+                                    onSelect={(d) => {
+                                        if (d) {
+                                            setSaleDate(d);
+                                            setIsCalendarOpenStep1(false);
+                                        }
+                                    }}
+                                    className="bg-white text-zinc-800"
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
             </div>
